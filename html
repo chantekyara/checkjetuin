@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CheckJeTuin.nl — Warmtepomp Plaatsingstool</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Turf.js/6.5.0/turf.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #f9f9f7;
+    color: #1a1a1a;
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  header {
+    width: 100%;
+    max-width: 720px;
+    padding: 48px 24px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  .logo-tag {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #888;
+    margin-bottom: 14px;
+  }
+  h1 {
+    font-size: clamp(24px, 5vw, 40px);
+    font-weight: 600;
+    line-height: 1.15;
+    color: #1a1a1a;
+    margin-bottom: 12px;
+    letter-spacing: -0.5px;
+  }
+  .subtitle {
+    color: #666;
+    font-size: 15px;
+    max-width: 460px;
+    line-height: 1.65;
+    margin-bottom: 32px;
+    font-weight: 400;
+  }
+  .input-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 24px;
+  }
+  input {
+    background: #fff;
+    border: 1.5px solid #ddd;
+    color: #1a1a1a;
+    padding: 11px 16px;
+    border-radius: 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    outline: none;
+    transition: border-color .2s;
+    width: 155px;
+  }
+  input:focus { border-color: #1a1a1a; }
+  input::placeholder { color: #aaa; }
+
+  .calc-btn {
+    background: #1a1a1a;
+    color: #fff;
+    border: none;
+    padding: 12px 28px;
+    border-radius: 8px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-size: 15px;
+    cursor: pointer;
+    transition: opacity .2s, transform .1s;
+    margin-bottom: 8px;
+  }
+  .calc-btn:hover { opacity: .82; transform: translateY(-1px); }
+  .calc-btn:active { transform: translateY(0); }
+
+  .error { color: #c0392b; font-size: 14px; margin-bottom: 14px; display: none; }
+  .loading-msg { color: #888; font-size: 14px; text-align: center; padding: 10px 0; display: none; }
+
+  .results-wrap {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    width: 100%;
+    max-width: 720px;
+    padding: 0 24px 60px;
+  }
+
+  .map-card {
+    width: 100%;
+    background: #fff;
+    border-radius: 14px;
+    border: 1px solid #e8e8e4;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity .5s ease, transform .5s ease;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .map-card.visible { opacity: 1; transform: translateY(0); }
+
+  .map-card-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1a1a1a;
+  }
+
+  .map-instruction {
+    font-size: 13px;
+    color: #888;
+    background: #f5f5f2;
+    border-radius: 6px;
+    padding: 8px 12px;
+  }
+
+  .legend-row {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: #555;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
+
+  #map {
+    width: 100%;
+    height: 480px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid #e0e0dc;
+    background: #eee;
+  }
+
+  .leaflet-interactive:focus { outline: none !important; }
+  .leaflet-interactive { outline: none !important; }
+  .leaflet-popup-content-wrapper {
+    background: #fff !important;
+    color: #1a1a1a !important;
+    border-radius: 8px !important;
+    border: 1px solid #e0e0dc !important;
+    box-shadow: 0 4px 16px rgba(0,0,0,.1) !important;
+  }
+  .leaflet-popup-tip { background: #fff !important; }
+  .leaflet-popup-content { font-family: 'Inter', sans-serif !important; font-size: 13px !important; }
+
+  .stats-row {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+  }
+  .stat-card {
+    flex: 1 1 300px;
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #e8e8e4;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity .5s ease, transform .5s ease;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  .stat-card.visible { opacity: 1; transform: translateY(0); }
+  .stat-card-yours  { border-left: 3px solid #2ECC7A; }
+  .stat-card-competitor { border-left: 3px solid #e74c3c; }
+
+  .card-header { display: flex; align-items: center; gap: 10px; }
+  .badge {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 20px;
+  }
+  .badge-yours { background: rgba(46,204,122,0.12); color: #27ae60; }
+  .badge-competitor { background: rgba(231,76,60,0.1); color: #c0392b; }
+  .card-title { font-size: 16px; font-weight: 600; color: #1a1a1a; }
+
+  .stat-row-item {
+    display: flex;
+    justify-content: space-between;
+    background: #f9f9f7;
+    border-radius: 6px;
+    padding: 9px 12px;
+    font-size: 13px;
+    color: #666;
+    border: 1px solid #eeeeea;
+  }
+  .stat-row-item span:last-child { color: #1a1a1a; font-weight: 500; }
+
+  .verdict {
+    text-align: center;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .verdict-good { background: rgba(46,204,122,0.08); color: #27ae60; border: 1px solid rgba(46,204,122,0.2); }
+  .verdict-bad  { background: rgba(231,76,60,0.07); color: #c0392b; border: 1px solid rgba(231,76,60,0.15); }
+  .verdict strong { display: block; font-size: 14px; margin-bottom: 2px; }
+
+  .disclaimer {
+    color: #999;
+    font-size: 11.5px;
+    line-height: 1.65;
+    padding-bottom: 4px;
+  }
+
+  .map-instruction {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .step-label {
+    display: inline-block;
+    background: #1a1a1a;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-right: 6px;
+  }
+  .slider-section {
+    width: 100%;
+    background: #fff;
+    border-radius: 14px;
+    border: 1px solid #e8e8e4;
+    padding: 18px 20px;
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  .slider-section.visible { display: flex; }
+  .slider-label {
+    font-size: 14px;
+    color: #1a1a1a;
+    font-weight: 500;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .slider-value {
+    font-size: 18px;
+    font-weight: 600;
+    color: #e74c3c;
+  }
+  .slider-hint { font-size: 12px; color: #aaa; }
+  input[type=range] {
+    width: 100%;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: #e0e0dc;
+    border-radius: 2px;
+    outline: none;
+    border: none;
+    padding: 0;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: #e74c3c;
+    cursor: pointer;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: #e74c3c;
+    cursor: pointer;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  }
+  @media (max-width: 500px) {
+    .input-row { flex-direction: column; align-items: center; }
+    input { width: 240px; }
+    #map { height: 340px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-tag">CheckJeTuin.nl · Warmtepomp Plaatsingstool</div>
+  <h1>Past jouw warmtepomp in de tuin?</h1>
+  <p class="subtitle">Voer je adres in en zie direct of jouw warmtepomp voldoet aan de Nederlandse geluidswetgeving. Gebaseerd op de officiële WPAC-methode (BBl art. 4.107).</p>
+  <div class="input-row">
+    <input type="text" id="postcode" placeholder="1234 AB" maxlength="7">
+    <input type="text" id="huisnummer" placeholder="Huisnummer" maxlength="6">
+  </div>
+  <button class="calc-btn" onclick="calculate()">Bereken plaatsingszone →</button>
+  <div class="loading-msg" id="loading">📍 Adres en perceeldata ophalen…</div>
+  <div class="error" id="error">Voer een geldige postcode en huisnummer in.</div>
+</header>
+
+<div class="results-wrap" id="results">
+  <div class="map-card" id="map-card">
+    <div class="map-card-title">Plaatsingszone — <span id="address-label" style="color:#888;font-size:13px;font-weight:400;"></span></div>
+    <div class="map-instruction"><span class="step-label">Stap 1</span> Klik op de perceelgrenzen waar je buren wonen. De plaatsingszone wordt direct berekend. <span style="color:#888;">Rood = buren aanwezig · Grijs = vrije grens</span></div>
+    <div class="legend-row">
+      <span class="legend-item"><span class="legend-dot" style="background:rgba(46,204,122,.6);border:2px solid #2ECC7A;"></span><span>Aanbevolen model (51 dB)</span></span>
+      <span class="legend-item"><span class="legend-dot" style="background:rgba(231,76,60,.5);border:2px solid #e74c3c;"></span><span id="legend-comp-label">Daikin Altherma 3 H (57 dB)</span></span>
+      <span class="legend-item"><span class="legend-dot" style="background:rgba(0,0,0,0);border:2px dashed #e74c3c; border-radius:0;"></span><span>Perceelgrens (klikbaar)</span></span>
+    </div>
+    <div id="map"></div>
+    <div class="disclaimer">Indicatieve berekening op basis van 45 dB(A) nachtnorm, conform WPAC Gg_1-methode (BBl art. 4.107). Perceelgrenzen via Kadaster/PDOK. Voor officiële beoordeling is een volledige WPAC-berekening door een installateur vereist. Luchtfoto © PDOK/Kadaster.</div>
+  </div>
+
+  <div class="slider-section" id="slider-section">
+    <div class="slider-label">
+      <span style="font-size:13px;font-weight:600;color:#1a1a1a;">Welke warmtepomp overweeg je?</span>
+    </div>
+    <select id="brand-select" onchange="onBrandChange(this.value)" style="
+      background:#f9f9f7;border:1.5px solid #ddd;color:#1a1a1a;
+      padding:10px 14px;border-radius:8px;font-family:'Inter',sans-serif;
+      font-size:14px;outline:none;width:100%;cursor:pointer;
+      transition:border-color .2s;">
+      <optgroup label="── Meest geplaatste modellen in Nederland ──">
+        <option value="daikin|57|Daikin Altherma 3 H|Monoblock" selected>Daikin Altherma 3 H — 57 dB(A)</option>
+        <option value="mitsubishi|58|Mitsubishi Ecodan (Zubadan)|Split">Mitsubishi Ecodan Zubadan — 58 dB(A)</option>
+        <option value="vaillant|54|Vaillant aroTHERM plus|Monoblock">Vaillant aroTHERM plus — 54 dB(A)</option>
+        <option value="panasonic|59|Panasonic Aquarea L-serie|Monoblock">Panasonic Aquarea L-serie — 59 dB(A)</option>
+        <option value="nibe|53|NIBE S2125|Monoblock">NIBE S2125 — 53 dB(A)</option>
+        <option value="nefit|54|Nefit Bosch Compress 5800i|Monoblock">Nefit Bosch Compress 5800i — 54 dB(A)</option>
+        <option value="samsung|60|Samsung EHS Mono|Monoblock">Samsung EHS Mono — 60 dB(A)</option>
+        <option value="lg|61|LG ThermaV|Monoblock">LG ThermaV — 61 dB(A)</option>
+        <option value="wolf|55|Wolf CHA Monoblock|Monoblock">Wolf CHA Monoblock — 55 dB(A)</option>
+      </optgroup>
+      <optgroup label="── Handmatig instellen ──">
+        <option value="custom|59|Eigen model|—">Ander model (voer dB in via slider)</option>
+      </optgroup>
+    </select>
+    <div id="brand-info" style="display:none;background:#fff8ed;border:1px solid #ffe4b0;border-radius:6px;padding:9px 12px;font-size:12px;color:#7a5200;line-height:1.6;"></div>
+    <div class="slider-label" style="margin-top:4px;">
+      <span style="font-size:13px;color:#888;">Geluidsvermogen geselecteerd model (L<sub>W,max</sub>)</span>
+      <span class="slider-value"><span id="slider-display">57</span> dB(A)</span>
+    </div>
+    <input type="range" id="comp-slider" min="52" max="75" value="57" step="0.5"
+      oninput="onSliderManual(this.value)">
+    <div class="slider-hint">Niet zeker? Kijk op het energielabel of vraag je installateur naar de L<sub>W,max</sub>-waarde.</div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card stat-card-yours" id="stat-yours">
+      <div class="card-header">
+        <div class="badge badge-yours">Aanbevolen</div>
+        <div class="card-title">Stille warmtepomp (51 dB)</div>
+      </div>
+      <div class="stat-row-item"><span>Geluidsvermogen (L<sub>W,max</sub>)</span><span>51 dB(A)</span></div>
+      <div class="stat-row-item"><span>Min. afstand hart pomp tot erfgrens</span><span id="dist-yours">—</span></div>
+      <div class="verdict verdict-good" id="verdict-yours"></div>
+    </div>
+    <div class="stat-card stat-card-competitor" id="stat-comp">
+      <div class="card-header">
+        <div class="badge badge-competitor" id="comp-badge">Daikin</div>
+        <div class="card-title" id="comp-title">Daikin Altherma 3 H</div>
+      </div>
+      <div class="stat-row-item"><span>Geluidsvermogen alternatief (L<sub>W,max</sub>)</span><span id="lwa-comp">—</span></div>
+      <div class="stat-row-item"><span>Min. afstand hart pomp tot erfgrens</span><span id="dist-comp">—</span></div>
+      <div class="verdict verdict-bad" id="verdict-comp"></div>
+    </div>
+  </div>
+  <div id="conclusion-block" style="
+    width:100%;background:#fff;border-radius:14px;border:1px solid #e8e8e4;
+    padding:20px 22px;box-shadow:0 1px 4px rgba(0,0,0,0.05);
+    opacity:0;transform:translateY(20px);transition:opacity .5s ease,transform .5s ease;"
+    class="map-card" id="conclusion-card">
+    <div style="font-size:13px;font-weight:600;color:#888;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">Conclusie voor dit perceel</div>
+    <div id="conclusion-text" style="font-size:14px;color:#1a1a1a;line-height:1.7;"></div>
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid #f0f0ec;font-size:11.5px;color:#aaa;">
+      Berekening conform BBl art. 4.107 · WPAC Gg_1-methode · Geluidsgrens 40 dB(A) nacht · Perceeldata via Kadaster/PDOK
+    </div>
+  </div>
+</div>
+// ── Constants ──────────────────────────────────────────────────────
+const LWA_YOURS      = 50.8;
+let LWA_COMPETITOR = 57;
+const LIMIT_DB       = 45;
+const PUMP_W         = 0.60;
+const SRC_HEIGHT     = (2/3) * 0.90;   // 0.60m
+const DELTA_H        = 1.5 - SRC_HEIGHT; // 0.90m
+
+// ── Brand metadata ─────────────────────────────────────────────────
+const BRAND_INFO = {
+  daikin: '⚠ Let op: met een bronwaarde van 57 dB(A) moet dit model op minimaal 4–5 meter van de erfgrens staan om 's nachts aan de 40 dB-norm te voldoen. In kleinere tuinen of bij aanliggende buren kan dit een probleem zijn.',
+  mitsubishi: '⚠ De Zubadan-techniek levert extra vermogen bij vorst, maar het geluidsvermogen (58 dB) vereist een ruime plaatsingsafstand. Bij smalle percelen of direct aangrenzende buren is dit model lastig te plaatsen binnen de wettelijke norm.',
+  vaillant: '⚠ Populair model, maar de bronwaarde van 54 dB(A) betekent dat je rekening moet houden met een verplichte vrije zone. In stedelijke rijtjeshuizen met kleine achtertuinen is de marge krap.',
+  panasonic: '⚠ De L-serie is verbeterd, maar met 59 dB(A) heeft dit model relatief veel ruimte nodig. Controleer altijd de afstand tot de erfgrens voor je een offerte tekent.',
+  nibe: '⚠ Met 53 dB(A) scoort dit model redelijk, maar in situaties met meerdere aangrenzende buren kan de vereiste plaatsingszone toch knellen. Laat een WPAC-berekening maken.',
+  nefit: '⚠ Compact en breed verkrijgbaar, maar een bronwaarde van 54 dB(A) vraagt om zorgvuldige plaatsing. Bij tuinen kleiner dan 30 m² wordt het ingewikkeld.',
+  samsung: '⚠ Met 60 dB(A) één van de luidere modellen in zijn klasse. Vereist ruim 5 meter vrije afstand tot de erfgrens bij aanwezige buren. Niet geschikt voor kleine stadstuinen.',
+  lg: '⚠ Met 61 dB(A) een van de luidere opties. De vereiste vrije zone is groot — dit model past in veel Nederlandse achtertuinen eenvoudigweg niet binnen de geluidsnorm.',
+  wolf: '⚠ De CHA-serie scoort 55 dB(A). Beter dan het gemiddelde, maar toch vereist ook dit model een duidelijke vrije zone tot de erfgrens. Controleer of jouw tuin dat toelaat.',
+  custom: null,
+};
+
+let _currentBrandName = 'Daikin Altherma 3 H';
+
+function onBrandChange(val) {
+  const parts = val.split('|');
+  const brandKey = parts[0];
+  const lwa = parseFloat(parts[1]);
+  const brandName = parts[2];
+
+  _currentBrandName = brandName;
+  LWA_COMPETITOR = lwa;
+
+  // Update slider
+  document.getElementById('comp-slider').value = lwa;
+  document.getElementById('slider-display').textContent = lwa;
+  document.getElementById('lwa-comp').textContent = lwa + ' dB(A)';
+
+  // Update card title + badge
+  document.getElementById('comp-title').textContent = brandName;
+  document.getElementById('comp-badge').textContent = brandKey === 'custom' ? 'Alternatief' : brandName.split(' ').slice(0,1)[0];
+
+  // Update legend
+  document.getElementById('legend-comp-label').textContent = brandName + ' (' + lwa + ' dB)';
+
+  // Brand info box
+  const infoEl = document.getElementById('brand-info');
+  const info = BRAND_INFO[brandKey];
+  if (info) {
+    infoEl.textContent = info;
+    infoEl.style.display = 'block';
+  } else {
+    infoEl.style.display = 'none';
+  }
+
+  if (map && _parcelPoly) { drawParcelSegments(_parcelPoly); redrawZones(); }
+}
+
+function onSliderManual(val) {
+  LWA_COMPETITOR = parseFloat(val);
+  document.getElementById('slider-display').textContent = val;
+  document.getElementById('lwa-comp').textContent = val + ' dB(A)';
+  // Switch dropdown to 'custom'
+  document.getElementById('brand-select').value = 'custom|59|Aangepast model|—';
+  _currentBrandName = 'Aangepast model (' + val + ' dB)';
+  document.getElementById('comp-title').textContent = 'Aangepast model';
+  document.getElementById('comp-badge').textContent = 'Alternatief';
+  document.getElementById('legend-comp-label').textContent = 'Alternatief (' + val + ' dB)';
+  document.getElementById('brand-info').style.display = 'none';
+  if (map && _parcelPoly) { drawParcelSegments(_parcelPoly); redrawZones(); }
+}
+
+// ── Acoustics ──────────────────────────────────────────────────────
+// Q interpolation: Q=1 at gevel, Q=2 at 2.5m+, linear in between
+// Dutch WPAC convention: Q=1 (against wall), Q=2 (free field)
+const Q_AT_WALL = 1;
+const Q_FREE    = 2;
+const Q_TRANSITION_DIST = 2.5; // metres from building facade
+
+function qForDistance(distToBuilding) {
+  if (distToBuilding <= 0) return Q_AT_WALL;
+  if (distToBuilding >= Q_TRANSITION_DIST) return Q_FREE;
+  // Linear interpolation
+  return Q_AT_WALL + (Q_FREE - Q_AT_WALL) * (distToBuilding / Q_TRANSITION_DIST);
+}
+
+function calcDistanceForQ(lwa, Q) {
+  // Lp = LWA - 10*log10(Q*pi*r^2) → r3d = sqrt(10^((LWA-Lp)/10) / (Q*pi))
+  const r3d = Math.sqrt(Math.pow(10,(lwa - LIMIT_DB)/10) / (Q * Math.PI));
+  const rc  = r3d > DELTA_H ? Math.sqrt(r3d*r3d - DELTA_H*DELTA_H) : 0;
+  return rc + PUMP_W/2;
+}
+
+// Default (free field Q=2) for stats display
+function calcDistance(lwa) {
+  return calcDistanceForQ(lwa, Q_FREE);
+}
+
+// Distance from a point [x,y] in metres to nearest edge of building polygon (in metres)
+// buildingPtsM: array of [x,y] in metres
+function distToBuilding(px, py, buildingPtsM) {
+  if (!buildingPtsM || buildingPtsM.length < 2) return Infinity;
+  const n = buildingPtsM.length;
+  let minDist = Infinity;
+  for (let i = 0; i < n; i++) {
+    const ax = buildingPtsM[i][0], ay = buildingPtsM[i][1];
+    const bx = buildingPtsM[(i+1)%n][0], by = buildingPtsM[(i+1)%n][1];
+    const dx = bx-ax, dy = by-ay;
+    const lenSq = dx*dx + dy*dy;
+    let t = lenSq > 0 ? ((px-ax)*dx + (py-ay)*dy) / lenSq : 0;
+    t = Math.max(0, Math.min(1, t));
+    const cx = ax + t*dx, cy = ay + t*dy;
+    const d = Math.sqrt((px-cx)*(px-cx) + (py-cy)*(py-cy));
+    if (d < minDist) minDist = d;
+  }
+  return minDist;
+}
+
+// Buffer a polygon outward by dist metres (approximate, in lat/lng)
+function bufferPolygon(poly, dist) {
+  if (!poly || poly.length < 3) return null;
+  const cLat = poly.reduce((s,c)=>s+c[0],0)/poly.length;
+  const latPerM = 1/111320;
+  const lngPerM = 1/(111320*Math.cos(cLat*Math.PI/180));
+  const n = poly.length;
+  // For each vertex, compute outward offset = average of outward normals of adjacent edges
+  // Determine winding
+  let area = 0;
+  for (let i=0;i<n;i++){const j=(i+1)%n;area+=(poly[i][1]-poly[0][1])*(poly[j][0]-poly[0][0])-(poly[j][1]-poly[0][1])*(poly[i][0]-poly[0][0]);}
+  const ccw = area > 0;
+  const result = [];
+  for (let i=0;i<n;i++){
+    const prev = poly[(i-1+n)%n], curr = poly[i], next = poly[(i+1)%n];
+    // Edge normals (outward)
+    const dx1=(curr[1]-prev[1])/lngPerM, dy1=(curr[0]-prev[0])/latPerM;
+    const len1=Math.sqrt(dx1*dx1+dy1*dy1)||1;
+    const nx1=ccw?dy1/len1:-dy1/len1, ny1=ccw?-dx1/len1:dx1/len1;
+    const dx2=(next[1]-curr[1])/lngPerM, dy2=(next[0]-curr[0])/latPerM;
+    const len2=Math.sqrt(dx2*dx2+dy2*dy2)||1;
+    const nx2=ccw?dy2/len2:-dy2/len2, ny2=ccw?-dx2/len2:dx2/len2;
+    const ox=(nx1+nx2)/2, oy=(ny1+ny2)/2;
+    const ol=Math.sqrt(ox*ox+oy*oy)||1;
+    result.push([curr[0]+(oy/ol)*dist*latPerM, curr[1]+(ox/ol)*dist*lngPerM]);
+  }
+  return result;
+}
+
+// Check if a point [lat,lng] is inside a polygon [[lat,lng],...]
+function pointInPoly(lat, lng, poly) {
+  let inside = false;
+  for (let i=0,j=poly.length-1;i<poly.length;j=i++){
+    const [lati,lngi]=poly[i], [latj,lngj]=poly[j];
+    if(((lngi>lng)!==(lngj>lng))&&(lat<(latj-lati)*(lng-lngi)/(lngj-lngi)+lati)) inside=!inside;
+  }
+  return inside;
+}
+
+// Clip a zone polygon to only the part within the buffered building zone
+function intersectWithBuffer(zonePoly, bufferPoly) {
+  if (!zonePoly || !bufferPoly) return null;
+  // Keep only vertices of zonePoly that are inside bufferPoly
+  const inside = zonePoly.filter(([lat,lng]) => pointInPoly(lat, lng, bufferPoly));
+  // Add vertices of bufferPoly that are inside zonePoly
+  const bufInside = bufferPoly.filter(([lat,lng]) => pointInPoly(lat, lng, zonePoly));
+  const pts = [...inside, ...bufInside];
+  if (pts.length < 3) return null;
+  // Sort by angle around centroid
+  const cLat = pts.reduce((s,p)=>s+p[0],0)/pts.length;
+  const cLng = pts.reduce((s,p)=>s+p[1],0)/pts.length;
+  pts.sort((a,b)=>Math.atan2(a[0]-cLat,a[1]-cLng)-Math.atan2(b[0]-cLat,b[1]-cLng));
+  return pts;
+}
+
+// Clip zone polygon to exclude building using Turf.js difference
+function clipZoneByBuilding(zonePoly, buildingPoly) {
+  if (!zonePoly || !buildingPoly || buildingPoly.length < 3) return zonePoly;
+  if (typeof turf === 'undefined') return zonePoly;
+  try {
+    // Convert to GeoJSON (lng, lat order for GeoJSON)
+    const zoneCoords = [...zonePoly.map(([lat,lng]) => [lng,lat])];
+    // Close the ring
+    if (zoneCoords[0][0] !== zoneCoords[zoneCoords.length-1][0] ||
+        zoneCoords[0][1] !== zoneCoords[zoneCoords.length-1][1]) {
+      zoneCoords.push(zoneCoords[0]);
+    }
+    const buildCoords = [...buildingPoly.map(([lat,lng]) => [lng,lat])];
+    if (buildCoords[0][0] !== buildCoords[buildCoords.length-1][0] ||
+        buildCoords[0][1] !== buildCoords[buildCoords.length-1][1]) {
+      buildCoords.push(buildCoords[0]);
+    }
+
+    const zoneFeat    = turf.polygon([zoneCoords]);
+    const buildFeat   = turf.polygon([buildCoords]);
+    const result      = turf.difference(zoneFeat, buildFeat);
+
+    if (!result) return null;
+
+    // Handle both Polygon and MultiPolygon results — take largest
+    let coords;
+    if (result.geometry.type === 'Polygon') {
+      coords = result.geometry.coordinates[0];
+    } else if (result.geometry.type === 'MultiPolygon') {
+      // Pick the largest ring
+      coords = result.geometry.coordinates
+        .map(p => p[0])
+        .sort((a,b) => b.length - a.length)[0];
+    } else {
+      return zonePoly;
+    }
+
+    // Convert back to [lat,lng]
+    return coords.slice(0,-1).map(([lng,lat]) => [lat,lng]);
+  } catch(e) {
+    console.warn('clipZoneByBuilding error:', e);
+    return zonePoly;
+  }
+}
+
+// Subtract a polygon from another (keep parts of A outside B)
+function subtractPolygon(zonePoly, bufferPoly) {
+  if (!zonePoly || !bufferPoly) return zonePoly;
+  const outside = zonePoly.filter(([lat,lng]) => !pointInPoly(lat, lng, bufferPoly));
+  const bufOutside = bufferPoly.filter(([lat,lng]) => pointInPoly(lat, lng, zonePoly));
+  const pts = [...outside, ...bufOutside];
+  if (pts.length < 3) return null;
+  const cLat = pts.reduce((s,p)=>s+p[0],0)/pts.length;
+  const cLng = pts.reduce((s,p)=>s+p[1],0)/pts.length;
+  pts.sort((a,b)=>Math.atan2(a[0]-cLat,a[1]-cLng)-Math.atan2(b[0]-cLat,b[1]-cLng));
+  return pts;
+}
+
+// ── RD → WGS84 ─────────────────────────────────────────────────────
+function rd2wgs(x, y) {
+  const X0=155000, Y0=463000, phi0=52.15517440, lam0=5.38720621;
+  const dx=(x-X0)*1e-5, dy=(y-Y0)*1e-5;
+  const phi = phi0
+    + (3235.65389*dy - 32.58297*dx*dx - 0.24750*dy*dy - 0.84978*dx*dx*dy
+       - 0.06550*dy*dy*dy - 0.01709*dx*dx*dy*dy - 0.00738*dx
+       + 0.00530*dx*dx*dx*dx - 0.00039*dx*dx*dx*dx*dy + 0.00033*dy*dy*dy*dy*dy
+       - 0.00012*dx*dy) / 3600;
+  const lam = lam0
+    + (5260.52916*dx + 105.94684*dx*dy + 2.45656*dy*dy - 0.81885*dx*dx*dx
+       + 0.05594*dx*dy*dy - 0.05607*dx*dx*dx*dy + 0.01199*dy
+       - 0.00256*dx*dx*dx*dy*dy + 0.00128*dx*dy*dy*dy + 0.00022*dy*dy
+       - 0.00022*dx*dx + 0.00026*dx*dx*dx*dx*dx) / 3600;
+  return [phi, lam];
+}
+
+// ── Leaflet state ──────────────────────────────────────────────────
+let map = null;
+let parcelLayer = null;
+let zoneYours = null, zoneComp = null;
+let segmentLayers = []; // clickable boundary segments
+let _parcelPoly = null; // [[lat,lng],...]
+let _buildingPoly = null; // [[lat,lng],...] — BAG building footprint
+let _neighborSegs = new Set(); // indices of neighbor segments
+let _gardenCentre = null;
+let zoneQ4Yours = null, zoneQ4Comp = null; // Q=4 near-facade zones
+let buildingLayer = null;
+
+// ── Fetch building polygon via PDOK reverse geocoder + lookup ──────
+async function fetchBuildingPolygon(lat, lng) {
+  try {
+    // Stap 1: reverse geocode om pandidentificatie te krijgen
+    const revUrl = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/reverse?lat=${lat}&lon=${lng}&rows=5&distance=50&type=adres&fl=id,weergavenaam,pandidentificatie`;
+    const revRes = await fetch(revUrl);
+    if (!revRes.ok) throw new Error('reverse geocoder ' + revRes.status);
+    const revData = await revRes.json();
+    const docs = revData?.response?.docs;
+    console.log('Reverse geocoder docs:', docs?.length, docs?.[0]);
+
+    let pandId = null;
+    if (docs) {
+      for (const doc of docs) {
+        if (doc.pandidentificatie) { pandId = doc.pandidentificatie; break; }
+      }
+    }
+    if (!pandId) throw new Error('geen pandidentificatie');
+    console.log('Pand ID:', pandId);
+
+    // Stap 2: haal geometrie op via BAG OGC API met pandidentificatie
+    const pandUrl = `https://api.pdok.nl/lv/bag/ogc/v1/collections/pand/items/${pandId}?f=json`;
+    const pandRes = await fetch(pandUrl);
+    if (!pandRes.ok) throw new Error('pand lookup ' + pandRes.status);
+    const pandData = await pandRes.json();
+    console.log('Pand geometry type:', pandData?.geometry?.type);
+    if (!pandData.geometry?.coordinates) throw new Error('geen geometrie');
+
+    const coords = pandData.geometry.type === 'Polygon'
+      ? pandData.geometry.coordinates[0]
+      : pandData.geometry.coordinates[0][0];
+    return coords.slice(0,-1).map(([x,y]) => [y, x]);
+  } catch(e) {
+    console.warn('fetchBuildingPolygon failed:', e.message);
+    return null;
+  }
+}
+
+// ── Fetch parcel polygon ───────────────────────────────────────────
+async function fetchParcelPolygon(lat, lng) {
+  const delta = 0.0002;
+  const bbox = `${lng-delta},${lat-delta},${lng+delta},${lat+delta}`;
+  const url = `https://api.pdok.nl/kadaster/brk-kadastrale-kaart/ogc/v1/collections/perceel/items?f=json&bbox=${bbox}&limit=10`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (!data.features || data.features.length === 0) return null;
+  let best = null, bestArea = Infinity;
+  for (const f of data.features) {
+    if (!f.geometry) continue;
+    const coords = f.geometry.type === 'Polygon'
+      ? f.geometry.coordinates[0]
+      : f.geometry.coordinates[0][0];
+    if (pointInPolygon(lng, lat, coords)) {
+      const area = polygonArea(coords);
+      if (area < bestArea) { bestArea=area; best=coords; }
+    }
+  }
+  if (!best && data.features.length > 0) {
+    let minDist = Infinity;
+    for (const f of data.features) {
+      if (!f.geometry) continue;
+      const coords = f.geometry.type === 'Polygon'
+        ? f.geometry.coordinates[0]
+        : f.geometry.coordinates[0][0];
+      const cx = coords.reduce((s,c)=>s+c[0],0)/coords.length;
+      const cy = coords.reduce((s,c)=>s+c[1],0)/coords.length;
+      const d = Math.hypot(cx-lng, cy-lat);
+      if (d < minDist) { minDist=d; best=coords; }
+    }
+  }
+  if (!best) return null;
+  return best.map(([x,y])=>[y,x]);
+}
+
+function pointInPolygon(x, y, coords) {
+  let inside = false;
+  for (let i=0, j=coords.length-1; i<coords.length; j=i++) {
+    const xi=coords[i][0], yi=coords[i][1], xj=coords[j][0], yj=coords[j][1];
+    if (((yi>y)!==(yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi)) inside=!inside;
+  }
+  return inside;
+}
+
+function polygonArea(coords) {
+  let a=0;
+  for (let i=0;i<coords.length;i++){
+    const j=(i+1)%coords.length;
+    a+=coords[i][0]*coords[j][1]-coords[j][0]*coords[i][1];
+  }
+  return Math.abs(a/2);
+}
+
+// ── Compute garden centre from parcel ─────────────────────────────
+function computeGardenCentre(parcelPoly, buildingPoly) {
+  if (parcelPoly && parcelPoly.length > 2) {
+    // Use parcel centroid
+    const lat = parcelPoly.reduce((s,c)=>s+c[0],0)/parcelPoly.length;
+    const lng = parcelPoly.reduce((s,c)=>s+c[1],0)/parcelPoly.length;
+    return { lat, lng };
+  }
+  if (buildingPoly) {
+    let minLat=Infinity, maxLat=-Infinity, minLng=Infinity, maxLng=-Infinity;
+    for (const [lat,lng] of buildingPoly) {
+      if(lat<minLat)minLat=lat; if(lat>maxLat)maxLat=lat;
+      if(lng<minLng)minLng=lng; if(lng>maxLng)maxLng=lng;
+    }
+    return { lat: minLat - (8/2)/111320, lng: (minLng+maxLng)/2 };
+  }
+  return null;
+}
+
+// ── Build placement zone with Q-interpolated inset per vertex ────────
+// For each parcel vertex, compute required distance based on Q interpolated
+// from distance to building facade.
+function buildZoneFromParcel(parcelPoly, lwa, neighborSegs, buildingPtsM) {
+  if (!parcelPoly || parcelPoly.length < 3) return null;
+
+  const cLat = parcelPoly.reduce((s,c)=>s+c[0],0)/parcelPoly.length;
+  const latM = 111320;
+  const lngM = 111320 * Math.cos(cLat * Math.PI / 180);
+
+  // Convert parcel to metres
+  const pts = parcelPoly.map(([lat,lng]) => [lng * lngM, lat * latM]);
+  const n = pts.length;
+  const closed = (Math.abs(pts[0][0]-pts[n-1][0]) < 0.001 && Math.abs(pts[0][1]-pts[n-1][1]) < 0.001);
+  const ring = closed ? pts.slice(0, n-1) : pts.slice();
+  const N = ring.length;
+
+  // Determine winding
+  let area = 0;
+  for (let i=0; i<N; i++) {
+    const j = (i+1) % N;
+    area += ring[i][0] * ring[j][1] - ring[j][0] * ring[i][1];
+  }
+  const ccw = area > 0;
+
+  // Inward unit normal per segment
+  const normals = [];
+  for (let i=0; i<N; i++) {
+    const j = (i+1) % N;
+    const dx = ring[j][0] - ring[i][0];
+    const dy = ring[j][1] - ring[i][1];
+    const len = Math.sqrt(dx*dx + dy*dy);
+    if (len < 0.001) { normals.push([0,0]); continue; }
+    const nx = ccw ? -dy/len :  dy/len;
+    const ny = ccw ?  dx/len : -dx/len;
+    normals.push([nx, ny]);
+  }
+
+  // For each vertex, compute required inset distance based on Q at that vertex
+  // Q depends on distance from that vertex to nearest building edge
+  const offsets = Array(N).fill(null).map(() => [0, 0]);
+  for (const idx of neighborSegs) {
+    const i = idx % N;
+    const j = (i+1) % N;
+
+    // Inset at each endpoint of this segment
+    for (const vi of [i, j]) {
+      const [vx, vy] = ring[vi];
+      const dBldg = buildingPtsM ? distToBuilding(vx, vy, buildingPtsM) : Infinity;
+      const Q = qForDistance(dBldg);
+      const dist = calcDistanceForQ(lwa, Q);
+      const nx = normals[idx % N][0] * dist;
+      const ny = normals[idx % N][1] * dist;
+      offsets[vi][0] += nx;
+      offsets[vi][1] += ny;
+    }
+  }
+
+  const newRing = ring.map(([x,y], i) => [x + offsets[i][0], y + offsets[i][1]]);
+  const result = newRing.map(([x,y]) => [y/latM, x/lngM]);
+  if (result.length < 3) return null;
+  return result;
+}
+
+// ── Draw / update zones ────────────────────────────────────────────
+function redrawZones() {
+  if (!map || !_parcelPoly) return;
+
+  // Convert building polygon to metres for Q-distance calculations
+  let buildingPtsM = null;
+  if (_buildingPoly && _buildingPoly.length >= 2) {
+    const cLat = _buildingPoly.reduce((s,c)=>s+c[0],0)/_buildingPoly.length;
+    const latM = 111320;
+    const lngM = 111320 * Math.cos(cLat * Math.PI / 180);
+    buildingPtsM = _buildingPoly.map(([lat,lng]) => [lng*lngM, lat*latM]);
+  }
+
+  [zoneYours, zoneComp, zoneQ4Yours, zoneQ4Comp].forEach(l => { if(l) map.removeLayer(l); });
+  if (buildingLayer) { map.removeLayer(buildingLayer); buildingLayer = null; }
+  zoneQ4Yours = null; zoneQ4Comp = null;
+
+  // Compute garden polygon = parcel minus building using Turf
+  let gardenPoly = _parcelPoly;
+  if (_buildingPoly && _buildingPoly.length >= 3 && typeof turf !== 'undefined') {
+    try {
+      const toRing = poly => {
+        const coords = poly.map(([lat,lng]) => [lng,lat]);
+        if (coords[0][0] !== coords[coords.length-1][0] || coords[0][1] !== coords[coords.length-1][1])
+          coords.push(coords[0]);
+        return coords;
+      };
+      const diff = turf.difference(
+        turf.polygon([toRing(_parcelPoly)]),
+        turf.polygon([toRing(_buildingPoly)])
+      );
+      if (diff) {
+        const geom = diff.geometry;
+        const ring = geom.type === 'Polygon'
+          ? geom.coordinates[0]
+          : geom.coordinates.map(p=>p[0]).sort((a,b)=>b.length-a.length)[0];
+        gardenPoly = ring.slice(0,-1).map(([lng,lat]) => [lat,lng]);
+      }
+    } catch(e) { console.warn('Garden diff failed:', e); }
+  }
+
+  // Draw building outline on map
+  if (_buildingPoly && _buildingPoly.length >= 3) {
+    buildingLayer = L.polygon(_buildingPoly, {
+      color: '#555', weight: 2, fillColor: '#888', fillOpacity: 0.3, interactive: false
+    }).addTo(map);
+  }
+
+  // Build zones from garden polygon — already excludes building
+  let pC = buildZoneFromParcel(gardenPoly, LWA_COMPETITOR, _neighborSegs, buildingPtsM);
+  let pY = buildZoneFromParcel(gardenPoly, LWA_YOURS, _neighborSegs, buildingPtsM);
+
+  // Free-field distances for stats display only
+  const dY = calcDistance(LWA_YOURS);
+  const dC = calcDistance(LWA_COMPETITOR);
+
+  if (pC) {
+    zoneComp = L.polygon(pC, {
+      color:'#e74c3c', weight:2, dashArray:'6 4',
+      fillColor:'#e74c3c', fillOpacity:.18, interactive:false
+    }).addTo(map);
+    zoneComp.bindTooltip(`${_currentBrandName}: min. ${dC.toFixed(2)}m van erfgrens`);
+  }
+
+  if (pY) {
+    zoneYours = L.polygon(pY, {
+      color:'#2ECC7A', weight:2.5, dashArray:'6 3',
+      fillColor:'#2ECC7A', fillOpacity:.2, interactive:false
+    }).addTo(map);
+    zoneYours.bindTooltip(`Aanbevolen model: min. ${dY.toFixed(2)}m van erfgrens`);
+  }
+
+  updateStats(dY, dC, pY, pC);
+}
+
+function segmentArea(poly) {
+  if (!poly) return 0;
+  const latM=111320, lngM=111320*Math.cos(poly[0][0]*Math.PI/180);
+  const pts=poly.map(([lat,lng])=>[lat*latM, lng*lngM]);
+  let a=0;
+  for(let i=0;i<pts.length;i++){const j=(i+1)%pts.length;a+=pts[i][0]*pts[j][1]-pts[j][0]*pts[i][1];}
+  return Math.abs(a/2);
+}
+
+function updateStats(dY, dC, pY, pC) {
+  document.getElementById('dist-yours').textContent = dY.toFixed(2) + ' m';
+  document.getElementById('lwa-comp').textContent = LWA_COMPETITOR + ' dB(A)';
+  document.getElementById('dist-comp').textContent = dC.toFixed(2) + ' m';
+
+  const vY = document.getElementById('verdict-yours');
+  vY.className = pY ? 'verdict verdict-good' : 'verdict verdict-bad';
+  const atBoundary = dY <= PUMP_W / 2 + 0.01;
+  vY.innerHTML = pY
+    ? atBoundary
+      ? `<strong>✓ Geschikt voor deze tuin</strong>De berekende afstand is ${dY.toFixed(2)}m. Een warmtepomp met dit geluidsvermogen (51 dB) kan hier direct tegen de erfgrens worden geplaatst — ook bij aanliggende buren. <a href="https://www.whspr.nl" target="_blank" style="color:#27ae60;font-weight:600;text-decoration:none;">Bekijk dit model →</a>`
+      : `<strong>✓ Geschikt voor deze tuin</strong>Minimale afstand: ${dY.toFixed(2)}m vanaf het hart van de pomp. Een model met 51 dB(A) past binnen de wettelijke norm op dit perceel. <a href="https://www.whspr.nl" target="_blank" style="color:#27ae60;font-weight:600;text-decoration:none;">Bekijk dit model →</a>`
+    : `<strong>⚠ Geen geldige zone gevonden</strong>Overweeg een geluidsdempende omkasting of neem contact op met een installateur.`;
+
+  const vC = document.getElementById('verdict-comp');
+  vC.className = 'verdict verdict-bad';
+  if (pC) {
+    const diff = (dC - dY).toFixed(2);
+    vC.innerHTML = `<strong>⚠ Meer ruimte nodig</strong>Min. ${dC.toFixed(2)}m vereist — dat is <strong>${diff}m meer</strong> dan het aanbevolen model. In veel Nederlandse tuinen is die ruimte er niet.`;
+  } else {
+    vC.innerHTML = `<strong>✗ Past niet binnen de norm</strong>${_currentBrandName} overschrijdt de wettelijke geluidsnorm op dit perceel. Plaatsing is zonder speciale maatregelen niet toegestaan.`;
+  }
+
+  // Update conclusion block
+  const concEl = document.getElementById('conclusion-text');
+  const concCard = document.getElementById('conclusion-block');
+  if (pY && pC) {
+    const diff = (dC - dY).toFixed(1);
+    concEl.innerHTML = `Op basis van de perceelgegevens en de opgegeven geluidswaardes is een warmtepomp met een geluidsvermogen van <strong>51 dB(A)</strong> de enige optie die op dit perceel zonder aanpassingen wettelijk geplaatst mag worden.<br><br>Het geselecteerde model (<strong>${_currentBrandName}, ${LWA_COMPETITOR} dB</strong>) vereist <strong>${diff}m extra afstand</strong> tot de erfgrens. In de meeste Nederlandse achtertuinen is die ruimte er niet. <a href="https://www.whspr.nl" target="_blank" style="color:#1a1a1a;font-weight:600;">Lees meer over het aanbevolen model →</a>`;
+  } else if (pY && !pC) {
+    concEl.innerHTML = `Op dit perceel kan alleen een warmtepomp met een geluidsvermogen van <strong>51 dB(A)</strong> worden geplaatst. Het geselecteerde model (<strong>${_currentBrandName}, ${LWA_COMPETITOR} dB</strong>) past <strong>niet</strong> binnen de wettelijke geluidsnorm — plaatsing is zonder speciale maatregelen niet toegestaan. <a href="https://www.whspr.nl" target="_blank" style="color:#1a1a1a;font-weight:600;">Bekijk het aanbevolen alternatief →</a>`;
+  } else {
+    concEl.innerHTML = `Voor dit perceel kon geen geldige plaatsingszone worden berekend. Neem contact op met een gecertificeerde installateur voor een volledige WPAC-berekening.`;
+  }
+  setTimeout(() => { concCard.classList.add('visible'); }, 600);
+}
+
+// ── Draw clickable parcel segments ────────────────────────────────
+function drawParcelSegments(poly) {
+  // Remove old segments
+  segmentLayers.forEach(l => map.removeLayer(l));
+  segmentLayers = [];
+  if (!poly || poly.length < 3) return;
+
+  const n = poly.length;
+  for (let i = 0; i < n - 1; i++) {
+    const p1 = poly[i], p2 = poly[i+1];
+    const idx = i;
+    const isNeighbor = _neighborSegs.has(idx);
+
+    // Invisible thick line for easy clicking
+    const hitArea = L.polyline([p1, p2], {
+      color: 'transparent',
+      weight: 18,
+      opacity: 0.001,
+      interactive: true
+    }).addTo(map);
+
+    const seg = L.polyline([p1, p2], {
+      color: isNeighbor ? '#e74c3c' : '#888',
+      weight: isNeighbor ? 5 : 3,
+      opacity: isNeighbor ? 0.9 : 0.55,
+      dashArray: isNeighbor ? null : '6 4',
+      interactive: false
+    }).addTo(map);
+
+    hitArea.bindTooltip(isNeighbor ? '🔴 Buren — klik om te verwijderen' : '⬜ Vrij — klik voor buren', { sticky: true });
+
+    hitArea.on('click', () => {
+      if (_neighborSegs.has(idx)) {
+        _neighborSegs.delete(idx);
+      } else {
+        _neighborSegs.add(idx);
+      }
+      drawParcelSegments(_parcelPoly);
+      redrawZones();
+    });
+
+    segmentLayers.push(hitArea);
+    segmentLayers.push(seg);
+  }
+}
+
+// ── Geocoders ──────────────────────────────────────────────────────
+async function geocodePDOK(pc, nr) {
+  const q = encodeURIComponent(pc.replace(/\s/,'')+' '+nr);
+  const res = await fetch(`https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?q=${q}&rows=1&fl=centroide_ll,weergavenaam&fq=type:adres`);
+  const data = await res.json();
+  const docs = data?.response?.docs;
+  if (!docs || docs.length === 0) return null;
+  const d = docs[0];
+  const m = d.centroide_ll.match(/POINT\(([^ ]+) ([^ ]+)\)/);
+  if (!m) return null;
+  return { lat: parseFloat(m[2]), lng: parseFloat(m[1]), label: d.weergavenaam };
+}
+
+async function geocodeNominatim(pc, nr) {
+  const q = encodeURIComponent(pc.replace(/\s/,'')+' '+nr+', Netherlands');
+  const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&countrycodes=nl`, { headers: {'Accept-Language':'nl','User-Agent':'WarmtepompTool/1.0'} });
+  const data = await res.json();
+  if (!data || data.length === 0) return null;
+  return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), label: data[0].display_name.split(',').slice(0,3).join(',') };
+}
+
+async function geocode(pc, nr) {
+  try { const r = await geocodePDOK(pc, nr); if (r) return r; } catch(e) {}
+  try { const r = await geocodeNominatim(pc, nr); if (r) return r; } catch(e) {}
+  return null;
+}
+
+function validate(pc, nr) {
+  return /^[1-9][0-9]{3}\s?[A-Za-z]{2}$/.test(pc) && nr.trim().length > 0;
+}
+
+// ── Main ───────────────────────────────────────────────────────────
+
+
+async function calculate() {
+  const pc = document.getElementById('postcode').value.trim();
+  const nr = document.getElementById('huisnummer').value.trim();
+  const errEl = document.getElementById('error');
+  const loadEl = document.getElementById('loading');
+
+  if (!validate(pc, nr)) {
+    errEl.textContent = 'Voer een geldige postcode en huisnummer in.';
+    errEl.style.display = 'block';
+    return;
+  }
+  errEl.style.display = 'none';
+  loadEl.style.display = 'block';
+
+  let geo = null;
+  try { geo = await geocode(pc, nr); } catch(e) {}
+
+  loadEl.textContent = '🏠 Gebouwdata ophalen via BAG…';
+  let buildingPoly = null;
+  if (geo) { try { buildingPoly = await fetchBuildingPolygon(geo.lat, geo.lng); } catch(e) { console.warn('BAG error:', e); } }
+  console.log('buildingPoly:', buildingPoly ? buildingPoly.length + ' vertices' : 'NULL');
+
+  loadEl.textContent = '📐 Perceelgrenzen ophalen via Kadaster…';
+  let parcelPoly = null;
+  if (geo) { try { parcelPoly = await fetchParcelPolygon(geo.lat, geo.lng); } catch(e) {} }
+
+  loadEl.style.display = 'none';
+
+  if (!geo) {
+    errEl.textContent = 'Adres niet gevonden. Controleer postcode en huisnummer.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  document.getElementById('address-label').textContent = geo.label || '';
+  _parcelPoly = parcelPoly;
+  _buildingPoly = buildingPoly || null;
+  _neighborSegs = new Set();
+  _gardenCentre = computeGardenCentre(parcelPoly, buildingPoly);
+
+  document.getElementById('results').style.display = 'flex';
+
+  // Init or update map
+  const viewLat = _gardenCentre ? _gardenCentre.lat : geo.lat;
+  const viewLng = _gardenCentre ? _gardenCentre.lng : geo.lng;
+
+  if (!map) {
+    map = L.map('map', { zoomControl: true }).setView([viewLat, viewLng], 19);
+    L.tileLayer('https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/2023_ortho25/EPSG:3857/{z}/{x}/{y}.jpeg', {
+      attribution: '© <a href="https://www.pdok.nl">PDOK</a> / Kadaster', maxZoom: 21
+    }).addTo(map);
+  } else {
+    map.setView([viewLat, viewLng], 19);
+  }
+
+  // Draw parcel segments
+  drawParcelSegments(_parcelPoly);
+
+  // Draw initial zones (no neighbors yet)
+  redrawZones();
+
+  document.getElementById('slider-section').classList.add('visible');
+  document.getElementById('map-card').classList.add('visible');
+  setTimeout(() => {
+    document.getElementById('stat-yours').classList.add('visible');
+    setTimeout(() => document.getElementById('stat-comp').classList.add('visible'), 120);
+  }, 300);
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Enter') calculate(); });
+</script>
+</body>
+</html>
